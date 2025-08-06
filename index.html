@@ -474,57 +474,8 @@
                 <!-- Pódio -->
                 <div class="mb-6">
                     <h2 class="text-lg font-semibold text-gray-800 mb-4 text-center">🏆 Top 3</h2>
-                    <div class="flex justify-center items-end space-x-4 mb-6">
-                        <!-- 2º Lugar -->
-                        <div class="flex flex-col items-center">
-                            <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-2">
-                                <span class="text-2xl font-bold text-gray-600">MR</span>
-                            </div>
-                            <div class="bg-gray-300 w-20 h-16 rounded-t-lg flex items-center justify-center">
-                                <span class="text-2xl font-bold text-white">2</span>
-                            </div>
-                            <p class="text-sm font-medium text-gray-800 mt-2">Maria R.</p>
-                            <p class="text-xs text-gray-600">95 missões</p>
-                            <div class="mt-2 p-2 bg-gray-100 rounded-lg text-center">
-                                <div class="text-lg">🎁</div>
-                                <p class="text-xs font-medium text-gray-700">R$ 500</p>
-                                <p class="text-xs text-gray-500">cupom</p>
-                            </div>
-                        </div>
-
-                        <!-- 1º Lugar -->
-                        <div class="flex flex-col items-center">
-                            <div class="w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mb-2 border-4 border-yellow-500">
-                                <span class="text-2xl font-bold text-yellow-800">CS</span>
-                            </div>
-                            <div class="bg-yellow-400 w-24 h-20 rounded-t-lg flex items-center justify-center">
-                                <span class="text-3xl font-bold text-yellow-800">1</span>
-                            </div>
-                            <p class="text-sm font-medium text-gray-800 mt-2">Carlos S.</p>
-                            <p class="text-xs text-gray-600">120 missões</p>
-                            <div class="mt-2 p-2 bg-yellow-100 rounded-lg text-center border-2 border-yellow-400">
-                                <div class="text-xl">📱</div>
-                                <p class="text-xs font-bold text-yellow-800">iPhone</p>
-                                <p class="text-xs text-yellow-600">15 Pro</p>
-                            </div>
-                        </div>
-
-                        <!-- 3º Lugar -->
-                        <div class="flex flex-col items-center">
-                            <div class="w-16 h-16 bg-orange-200 rounded-full flex items-center justify-center mb-2">
-                                <span class="text-2xl font-bold text-orange-600">AP</span>
-                            </div>
-                            <div class="bg-orange-300 w-20 h-12 rounded-t-lg flex items-center justify-center">
-                                <span class="text-2xl font-bold text-white">3</span>
-                            </div>
-                            <p class="text-sm font-medium text-gray-800 mt-2">Ana P.</p>
-                            <p class="text-xs text-gray-600">87 missões</p>
-                            <div class="mt-2 p-2 bg-orange-100 rounded-lg text-center">
-                                <div class="text-lg">🎫</div>
-                                <p class="text-xs font-medium text-orange-700">3 meses</p>
-                                <p class="text-xs text-orange-500">grátis</p>
-                            </div>
-                        </div>
+                    <div id="podium-container" class="flex justify-center items-end space-x-4 mb-6">
+                        <!-- Será preenchido dinamicamente pelo JavaScript -->
                     </div>
                 </div>
 
@@ -689,6 +640,7 @@
             const completeMissionBtn = document.getElementById('complete-mission-btn');
             const userPosition = document.getElementById('user-position');
             const rankingList = document.getElementById('ranking-list');
+            const podiumContainer = document.getElementById('podium-container');
 
             // --- ESTADO DA SIMULAÇÃO ---
             let currentProgress = 0;
@@ -1274,6 +1226,70 @@
                 // Update user ranking
                 const userEntry = mockRanking.find(user => user.name === 'João (Você)');
                 userRanking = userEntry.position;
+                
+                // Update podium display
+                const top3 = mockRanking.slice(0, 3);
+                const podiumOrder = [top3[1], top3[0], top3[2]]; // 2nd, 1st, 3rd for visual ordering
+                
+                const getPodiumStyles = (position) => {
+                    switch(position) {
+                        case 1:
+                            return {
+                                avatar: 'w-20 h-20 bg-yellow-400 rounded-full flex items-center justify-center mb-2 border-4 border-yellow-500',
+                                avatarText: 'text-2xl font-bold text-yellow-800',
+                                platform: 'bg-yellow-400 w-24 h-20 rounded-t-lg flex items-center justify-center',
+                                platformText: 'text-3xl font-bold text-yellow-800',
+                                prize: 'mt-2 p-2 bg-yellow-100 rounded-lg text-center border-2 border-yellow-400',
+                                prizeEmoji: '📱',
+                                prizeTitle: 'iPhone',
+                                prizeSubtitle: '15 Pro'
+                            };
+                        case 2:
+                            return {
+                                avatar: 'w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-2',
+                                avatarText: 'text-2xl font-bold text-gray-600',
+                                platform: 'bg-gray-300 w-20 h-16 rounded-t-lg flex items-center justify-center',
+                                platformText: 'text-2xl font-bold text-white',
+                                prize: 'mt-2 p-2 bg-gray-100 rounded-lg text-center',
+                                prizeEmoji: '🎁',
+                                prizeTitle: 'R$ 500',
+                                prizeSubtitle: 'cupom'
+                            };
+                        case 3:
+                            return {
+                                avatar: 'w-16 h-16 bg-orange-200 rounded-full flex items-center justify-center mb-2',
+                                avatarText: 'text-2xl font-bold text-orange-600',
+                                platform: 'bg-orange-300 w-20 h-12 rounded-t-lg flex items-center justify-center',
+                                platformText: 'text-2xl font-bold text-white',
+                                prize: 'mt-2 p-2 bg-orange-100 rounded-lg text-center',
+                                prizeEmoji: '🎫',
+                                prizeTitle: '3 meses',
+                                prizeSubtitle: 'grátis'
+                            };
+                    }
+                };
+                
+                podiumContainer.innerHTML = podiumOrder.map(user => {
+                    if (!user) return '';
+                    const styles = getPodiumStyles(user.position);
+                    return `
+                        <div class="flex flex-col items-center">
+                            <div class="${styles.avatar}">
+                                <span class="${styles.avatarText}">${user.initials}</span>
+                            </div>
+                            <div class="${styles.platform}">
+                                <span class="${styles.platformText}">${user.position}</span>
+                            </div>
+                            <p class="text-sm font-medium text-gray-800 mt-2">${user.name}</p>
+                            <p class="text-xs text-gray-600">${user.missions} missões</p>
+                            <div class="${styles.prize}">
+                                <div class="text-lg">${styles.prizeEmoji}</div>
+                                <p class="text-xs font-bold ${user.position === 1 ? 'text-yellow-800' : user.position === 2 ? 'text-gray-700' : 'text-orange-700'}">${styles.prizeTitle}</p>
+                                <p class="text-xs ${user.position === 1 ? 'text-yellow-600' : user.position === 2 ? 'text-gray-500' : 'text-orange-500'}">${styles.prizeSubtitle}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
                 
                 // Update user position display
                 userPosition.innerHTML = `
