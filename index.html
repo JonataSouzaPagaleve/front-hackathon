@@ -835,13 +835,65 @@
             const MAX_PROGRESS = 64;
             let selectedPlan = null;
             
+            // --- SISTEMA DE PERSISTÊNCIA COM LOCALSTORAGE ---
+            const STORAGE_KEYS = {
+                USER_DATA: 'pagaleve_user_data',
+                SUBSCRIPTION: 'pagaleve_subscription',
+                CASHBACK: 'pagaleve_cashback',
+                RANKING: 'pagaleve_ranking',
+                CUPONS: 'pagaleve_cupons'
+            };
+
+            // Função para carregar dados do localStorage
+            const loadFromStorage = (key, defaultValue) => {
+                try {
+                    const stored = localStorage.getItem(key);
+                    return stored ? JSON.parse(stored) : defaultValue;
+                } catch (e) {
+                    console.warn(`Erro ao carregar ${key} do localStorage:`, e);
+                    return defaultValue;
+                }
+            };
+
+            // Função para salvar dados no localStorage
+            const saveToStorage = (key, value) => {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                } catch (e) {
+                    console.warn(`Erro ao salvar ${key} no localStorage:`, e);
+                }
+            };
+
+            // Função para limpar todos os dados do localStorage (útil para desenvolvimento)
+            const clearAppStorage = () => {
+                Object.values(STORAGE_KEYS).forEach(key => {
+                    localStorage.removeItem(key);
+                });
+                console.log('Todos os dados do app foram removidos do localStorage');
+            };
+
+            // Para facilitar o desenvolvimento, expõe no console
+            window.clearAppStorage = clearAppStorage;
+            window.debugStorage = () => {
+                console.log('=== ESTADO ATUAL DO LOCALSTORAGE ===');
+                console.log('Subscription:', loadFromStorage(STORAGE_KEYS.SUBSCRIPTION, null));
+                console.log('Cashback:', loadFromStorage(STORAGE_KEYS.CASHBACK, null));
+                console.log('Ranking:', loadFromStorage(STORAGE_KEYS.RANKING, null));
+                console.log('Cupons:', loadFromStorage(STORAGE_KEYS.CUPONS, null));
+                console.log('===================================');
+            };
+            window.addTestCashback = () => addCashback(50, 'Teste de cashback');
+            window.testCouponUsage = (couponId) => useCoupon(couponId);
+
             // --- ESTADO DA ASSINATURA ---
-            let isSubscribed = false;
-            let activeSubscription = null;
-            let cashbackBalanceAmount = 0; // Saldo inicial de cashback
+            let isSubscribed = loadFromStorage(STORAGE_KEYS.SUBSCRIPTION, { active: false, plan: null, startDate: null, endDate: null }).active;
+            let activeSubscription = loadFromStorage(STORAGE_KEYS.SUBSCRIPTION, { active: false, plan: null, startDate: null, endDate: null });
+            // --- SISTEMA DE CASHBACK COM LOCALSTORAGE ---
+            let cashbackData = loadFromStorage(STORAGE_KEYS.CASHBACK, { balance: 0, history: [] });
+            let cashbackBalanceAmount = cashbackData.balance;
             
             // --- ESTADO DO RANKING ---
-            let userMissions = 115;
+            let userMissions = loadFromStorage(STORAGE_KEYS.RANKING, { missions: 115, position: null, history: [] }).missions;
             let userRanking = 5;
             
             // --- ESTADO DA SIMULAÇÃO DE COMPRA ---
@@ -858,7 +910,7 @@
             ];
 
             // --- DEFINIÇÕES DOS CUPONS ---
-            const cupons = [
+            const defaultCupons = [
                 { 
                     id: 1, 
                     title: 'R$ 10 OFF', 
@@ -906,6 +958,34 @@
                     isPercentage: true
                 }
             ];
+
+            // --- SISTEMA DE CUPONS COM LOCALSTORAGE ---
+            let cupons = loadFromStorage(STORAGE_KEYS.CUPONS, {
+                available: [...defaultCupons],
+                used: []
+            });
+
+            // Funcões para gerenciar cupons
+            const saveCupons = () => {
+                saveToStorage(STORAGE_KEYS.CUPONS, cupons);
+            };
+
+            const useCoupon = (couponId) => {
+                const couponIndex = cupons.available.findIndex(c => c.id === couponId);
+                if (couponIndex !== -1) {
+                    const usedCoupon = cupons.available.splice(couponIndex, 1)[0];
+                    cupons.used.push({
+                        ...usedCoupon,
+                        usedAt: new Date().toISOString()
+                    });
+                    saveCupons();
+                    return true;
+                }
+                return false;
+            };
+
+            const getAvailableCoupons = () => cupons.available;
+            const getUsedCoupons = () => cupons.used;
 
             // --- SVGs ---
             const lockedIconSVG = `
@@ -967,9 +1047,13 @@
                 
                 activeSubscription = {
                     ...plan,
+                    active: true,
                     startDate: startDate.toISOString(),
                     endDate: endDate.toISOString()
                 };
+                
+                // Salva no localStorage
+                saveToStorage(STORAGE_KEYS.SUBSCRIPTION, activeSubscription);
                 
                 updateSubscriptionDetails();
                 updateSubscriptionUI();
@@ -979,7 +1063,10 @@
                 if (confirm('Tem certeza de que deseja cancelar sua assinatura?\n\nVocê perderá todos os benefícios do Clube de Benefícios imediatamente.')) {
                     // Reset do estado da assinatura
                     isSubscribed = false;
-                    activeSubscription = null;
+                    activeSubscription = { active: false, plan: null, startDate: null, endDate: null };
+                    
+                    // Salva no localStorage
+                    saveToStorage(STORAGE_KEYS.SUBSCRIPTION, activeSubscription);
                     
                     // Reset das seleções de plano
                     selectedPlan = null;
@@ -1027,14 +1114,53 @@
                 }
             };
             
-            const addCashback = (amount) => {
+            const saveCashback = () => {
+                cashbackData.balance = cashbackBalanceAmount;
+                saveToStorage(STORAGE_KEYS.CASHBACK, cashbackData);
+            };
+
+            const addCashback = (amount, description = 'Cashback recebido') => {
                 if (isSubscribed) {
                     cashbackBalanceAmount += amount;
+                    
+                    // Adiciona ao histórico
+                    cashbackData.history.push({
+                        amount: amount,
+                        description: description,
+                        date: new Date().toISOString(),
+                        type: 'credit'
+                    });
+                    
+                    saveCashback();
                     updateCashbackBalance();
                     updateCashbackDisponivel();
                     return true;
                 }
                 return false;
+            };
+
+            const useCashback = (amount, description = 'Cashback usado') => {
+                if (isSubscribed && cashbackBalanceAmount >= amount) {
+                    cashbackBalanceAmount -= amount;
+                    
+                    // Adiciona ao histórico
+                    cashbackData.history.push({
+                        amount: -amount,
+                        description: description,
+                        date: new Date().toISOString(),
+                        type: 'debit'
+                    });
+                    
+                    saveCashback();
+                    updateCashbackBalance();
+                    updateCashbackDisponivel();
+                    return true;
+                }
+                return false;
+            };
+
+            const getCashbackHistory = () => {
+                return cashbackData.history.slice().reverse(); // Retorna histórico ordenado por data (mais recente primeiro)
             };
 
             // --- FUNÇÕES DE ATUALIZAÇÃO DE INTERFACE ---
@@ -1218,7 +1344,7 @@
                     if (finalizePurchaseBtn) {
                         finalizePurchaseBtn.addEventListener('click', () => {
                             const cashbackAmount = 10.00; // R$ 10,00 de cashback
-                            if (addCashback(cashbackAmount)) {
+                            if (addCashback(cashbackAmount, 'Cashback da compra simulada')) {
                                 alert(`🎉 Compra finalizada com sucesso!\n\n✅ R$ ${cashbackAmount.toFixed(2)} de cashback adicionado ao seu saldo!\n\nSeu novo saldo: R$ ${cashbackBalanceAmount.toFixed(2)}`);
                                 
                                 // Volta para o perfil
@@ -1359,7 +1485,7 @@
                             </div>
                             <p class="text-sm text-green-600">Você tem acesso total aos cupons! Use os códigos abaixo:</p>
                         </div>
-                        ${cupons.map(cupon => `
+                        ${getAvailableCoupons().map(cupon => `
                             <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                                 <div class="flex items-center justify-between mb-2">
                                     <div class="flex items-center space-x-3">
@@ -1405,7 +1531,7 @@
                             </div>
                             <p class="text-sm text-orange-600">Torne-se membro do Clube de Benefícios para desbloquear os cupons!</p>
                         </div>
-                        ${cupons.map(cupon => `
+                        ${getAvailableCoupons().map(cupon => `
                             <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm opacity-60 relative overflow-hidden">
                                 <div class="absolute inset-0 bg-gray-100 bg-opacity-50"></div>
                                 <div class="relative">
@@ -1698,41 +1824,78 @@
             });
             
             completeMissionBtn.addEventListener('click', () => {
-                userMissions += 1;
+                updateUserMissions(userMissions + 1);
                 updateRankingDisplay();
             });
             
+            // --- SISTEMA DE RANKING COM LOCALSTORAGE ---
+            const defaultRankingData = [
+                { name: 'Carlos S.', missions: 120, position: 1, initials: 'CS', id: 'carlos_s' },
+                { name: 'Maria R.', missions: 95, position: 2, initials: 'MR', id: 'maria_r' },
+                { name: 'Ana P.', missions: 87, position: 3, initials: 'AP', id: 'ana_p' },
+                { name: 'João M.', missions: 73, position: 4, initials: 'JM', id: 'joao_m' },
+                { name: 'João (Você)', missions: userMissions, position: userRanking, initials: 'JV', id: 'user' },
+                { name: 'Pedro L.', missions: 45, position: 6, initials: 'PL', id: 'pedro_l' },
+                { name: 'Sofia T.', missions: 38, position: 7, initials: 'ST', id: 'sofia_t' },
+                { name: 'Lucas B.', missions: 29, position: 8, initials: 'LB', id: 'lucas_b' }
+            ];
+
+            let rankingData = loadFromStorage(STORAGE_KEYS.RANKING, {
+                users: [...defaultRankingData],
+                userMissions: userMissions,
+                lastUpdate: new Date().toISOString()
+            });
+
+            // Atualizar missões do usuário
+            userMissions = rankingData.userMissions;
+
+            const saveRanking = () => {
+                rankingData.userMissions = userMissions;
+                rankingData.lastUpdate = new Date().toISOString();
+                saveToStorage(STORAGE_KEYS.RANKING, rankingData);
+            };
+
+            const updateUserMissions = (newMissions) => {
+                userMissions = newMissions;
+                const userEntry = rankingData.users.find(user => user.id === 'user');
+                if (userEntry) {
+                    userEntry.missions = userMissions;
+                }
+                saveRanking();
+            };
+
             // --- RANKING FUNCTIONS ---
             const updateRankingDisplay = () => {
-                // Mock ranking data
-                const mockRanking = [
-                    { name: 'Carlos S.', missions: 120, position: 1, initials: 'CS' },
-                    { name: 'Maria R.', missions: 95, position: 2, initials: 'MR' },
-                    { name: 'Ana P.', missions: 87, position: 3, initials: 'AP' },
-                    { name: 'João M.', missions: 73, position: 4, initials: 'JM' },
-                    { name: 'João (Você)', missions: userMissions, position: userRanking, initials: 'JV' },
-                    { name: 'Pedro L.', missions: 45, position: 6, initials: 'PL' },
-                    { name: 'Sofia T.', missions: 38, position: 7, initials: 'ST' },
-                    { name: 'Lucas B.', missions: 29, position: 8, initials: 'LB' }
-                ];
+                // Usar dados do localStorage
+                const currentRanking = [...rankingData.users];
+                
+                // Atualizar missões do usuário
+                const userEntry = currentRanking.find(user => user.id === 'user');
+                if (userEntry) {
+                    userEntry.missions = userMissions;
+                }
                 
                 // Sort by missions count (descending)
-                mockRanking.sort((a, b) => b.missions - a.missions);
+                currentRanking.sort((a, b) => b.missions - a.missions);
                 
                 // Update positions
-                mockRanking.forEach((user, index) => {
+                currentRanking.forEach((user, index) => {
                     user.position = index + 1;
                 });
                 
                 // Update user ranking
-                const userEntry = mockRanking.find(user => user.name === 'João (Você)');
-                userRanking = userEntry.position;
+                const updatedUserEntry = currentRanking.find(user => user.id === 'user');
+                userRanking = updatedUserEntry.position;
+                
+                // Salvar mudanças
+                rankingData.users = currentRanking;
+                saveRanking();
                 
                 // Update ranking preview on profile screen
                 updateRankingPreview();
                 
                 // Update podium display
-                const top3 = mockRanking.slice(0, 3);
+                const top3 = currentRanking.slice(0, 3);
                 const podiumOrder = [top3[1], top3[0], top3[2]]; // 2nd, 1st, 3rd for visual ordering
                 
                 const getPodiumStyles = (position) => {
@@ -1815,7 +1978,7 @@
                 `;
                 
                 // Update full ranking list
-                rankingList.innerHTML = mockRanking.map(user => {
+                rankingList.innerHTML = currentRanking.map(user => {
                     const isUser = user.name === 'João (Você)';
                     const bgColor = isUser ? 'bg-blue-50' : 'bg-white';
                     const textColor = isUser ? 'text-blue-600' : 'text-gray-800';
@@ -1841,9 +2004,19 @@
             };
             
             // Inicializa a tela
+            console.log('🚀 Inicializando aplicação Pagaleve com localStorage...');
+            console.log('📊 Estado inicial carregado:', {
+                isSubscribed,
+                cashbackBalance: cashbackBalanceAmount,
+                userMissions,
+                availableCoupons: getAvailableCoupons().length
+            });
+            
             renderMedals();
             updateCashbackBalance();
             updateSubscriptionUI();
+            
+            console.log('✅ Aplicação inicializada com sucesso!');
         });
     </script>
 
