@@ -899,6 +899,9 @@
                 localStorage.removeItem('pagaleve_refresh_token');
                 localStorage.removeItem('pagaleve_token_expiration');
                 localStorage.removeItem('pagaleve_customer_data');
+                // Remover flag de OTP enviado
+                localStorage.removeItem('pagaleve_otp_sent');
+                localStorage.removeItem('pagaleve_otp_phone');
                 
                 // Voltar para tela de telefone
                 profileScreen.classList.add('hidden');
@@ -1398,6 +1401,10 @@
                     currentPhone = formattedPhone;
                     phoneDisplay.textContent = phone;
                     
+                    // Salvar flag OTP no localStorage
+                    localStorage.setItem('pagaleve_otp_sent', 'true');
+                    localStorage.setItem('pagaleve_otp_phone', phone);
+                    
                     // Ocultar tela de telefone e mostrar tela de OTP
                     phoneScreen.classList.add('hidden');
                     otpScreen.classList.remove('hidden');
@@ -1474,6 +1481,10 @@
                         // Ir para a tela principal
                         otpScreen.classList.add('hidden');
                         profileScreen.classList.remove('hidden');
+                        
+                        // Remover flag de OTP após login bem-sucedido
+                        localStorage.removeItem('pagaleve_otp_sent');
+                        localStorage.removeItem('pagaleve_otp_phone');
                         
                         // Atualiza a interface
                         updateEconomiaTotalValor();
@@ -2839,6 +2850,9 @@
                 otpInputs.forEach(input => input.value = '');
                 otpCode = '';
                 verifyOtpBtn.disabled = true;
+                // Remover flag de OTP ao voltar
+                localStorage.removeItem('pagaleve_otp_sent');
+                localStorage.removeItem('pagaleve_otp_phone');
             });
 
             // Gerenciar inputs do OTP
@@ -3007,10 +3021,26 @@
                     console.log('⏰ Token expirado, fazendo logout...');
                     logout();
                 } else {
-                    console.log('📱 Mostrando tela de telefone para novo login');
-                    phoneScreen.classList.remove('hidden');
-                    otpScreen.classList.add('hidden');
-                    profileScreen.classList.add('hidden');
+                    // Verificar se há OTP pendente
+                    const otpSent = localStorage.getItem('pagaleve_otp_sent');
+                    const otpPhone = localStorage.getItem('pagaleve_otp_phone');
+                    
+                    if (otpSent === 'true' && otpPhone) {
+                        console.log('📱 OTP já enviado, mostrando tela de OTP');
+                        phoneDisplay.textContent = otpPhone;
+                        // Definir currentPhone para permitir reenvio do OTP
+                        const cleanPhone = otpPhone.replace(/\D/g, '');
+                        currentPhone = `+${cleanPhone}`;
+                        phoneScreen.classList.add('hidden');
+                        otpScreen.classList.remove('hidden');
+                        profileScreen.classList.add('hidden');
+                        otpInputs[0].focus();
+                    } else {
+                        console.log('📱 Mostrando tela de telefone para novo login');
+                        phoneScreen.classList.remove('hidden');
+                        otpScreen.classList.add('hidden');
+                        profileScreen.classList.add('hidden');
+                    }
                 }
             }
             
@@ -3054,6 +3084,8 @@
                     localStorage.removeItem('pagaleve_token_expiration');
                     localStorage.removeItem('pagaleve_customer_data');
                     localStorage.removeItem('pagaleve_economia_total');
+                    localStorage.removeItem('pagaleve_otp_sent');
+                    localStorage.removeItem('pagaleve_otp_phone');
                     location.reload();
                 },
                 showStorageData: () => {
